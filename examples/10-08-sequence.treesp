@@ -1,0 +1,6 @@
+(define empty ())
+(node seq
+  (head 1)
+  (tail (node seq
+          (head 2)
+          (tail (node seq (head 3) (tail empty))))))

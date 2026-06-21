@@ -782,6 +782,28 @@ Branch access for variadic ops: all `arg0`, `arg1`, … branches are collected i
 
 `display` prints trees using the canonical S-expression syntax with explicit labels only when necessary for round-trip (implementations may always print desugared form).
 
+### 7.9 Application
+
+| Primitive | Signature | Description |
+|-----------|-----------|-------------|
+| `apply` | `(apply operator args-tree)` | Invoke `operator` with the branches of `args-tree` as call arguments |
+
+**Semantics** (surface form of §5.3 `apply`):
+
+- `arg0` (`operator`): evaluated; must be a primitive or closure.
+- `arg1` (`args-tree`): evaluated; must be a **tree**. Its branches (in insertion order, typically `arg0`…`argN`) form the argument branch map for the call.
+- Variadic primitives (`+`, `*`, etc.) collect all positional branches from `args-tree` in order (§7.7).
+- Closures bind parameters from `args-tree` branches as in a normal call.
+- Macros cannot be applied directly; use macro expansion via call syntax instead.
+
+**Errors:** `apply: not callable`, `apply: args must be a tree`, plus arity errors from the callee.
+
+```treesp
+(apply + (node values (arg0 1) (arg1 2) (arg2 3)))   ; => 6
+```
+
+See §10.4 for `apply` with `map-branches`.
+
 ---
 
 ## 8. Macros
@@ -850,7 +872,7 @@ No module system is defined in v0.1. The following **conceptual modules** group 
 
 ### 9.1 `treesp.core`
 
-Special forms, `define`, `lambda`, arithmetic, predicates, `display`, `read`.
+Special forms, `define`, `lambda`, `apply`, arithmetic, predicates, `display`, `read`.
 
 ### 9.2 `treesp.tree`
 
@@ -949,7 +971,7 @@ Sum all numeric leaves:
          (apply + (map-branches t tree-sum)))))
 ```
 
-Note: `apply` on `+` with multiple numeric branches uses positional `argN` collection.
+Note: `apply` on `+` with multiple numeric branches uses positional `argN` collection (§7.9).
 
 ### 10.5 Quasiquote building a tree
 

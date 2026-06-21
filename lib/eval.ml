@@ -186,14 +186,26 @@ let rec apply_prim rt name branches =
       match args with
       | [ tree; pred ] -> filter_branches rt pred tree
       | _ -> raise (Treesp_error "wrong arity"))
+  | "apply" -> (
+      match args with
+      | [ op; Tree { branches; _ } ] -> (
+          match op with
+          | Callable c -> apply_callable_branches rt c branches
+          | _ -> raise (Treesp_error "apply: not callable"))
+      | [ _; _ ] -> raise (Treesp_error "apply: args must be a tree")
+      | _ -> raise (Treesp_error "wrong arity"))
   | _ -> raise (Treesp_error ("unknown primitive: " ^ name))
+
+and apply_callable_branches rt callable branches =
+  match callable with
+  | Prim name -> apply_prim rt name branches
+  | Closure { env; params; body } -> apply_closure rt env params body branches
+  | Macro _ -> raise (Treesp_error "apply: macro must expand first")
 
 and apply_callable rt callable args =
   let branches = List.mapi (fun i v -> (arg_label i, v)) args in
   match callable with
-  | Callable (Prim name) -> apply_prim rt name branches
-  | Callable (Closure { env; params; body }) -> apply_closure rt env params body branches
-  | Callable (Macro _) -> raise (Treesp_error "macro called without expansion")
+  | Callable c -> apply_callable_branches rt c branches
   | _ -> raise (Treesp_error "not callable")
 
 and fold_tree rt v leaf_fn node_fn =
@@ -666,6 +678,7 @@ let primitive_names =
     "walk-tree";
     "map-branches";
     "filter-branches";
+    "apply";
     "+";
     "-";
     "*";

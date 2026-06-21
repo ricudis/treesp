@@ -1,0 +1,3 @@
+(define t (node root (a 1) (b 2)))
+(graft t c 3)
+(prune (graft t a 99) b)

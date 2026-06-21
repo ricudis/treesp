@@ -97,6 +97,19 @@ callable =
 
 Prelude macros are installed in `make_runtime` via `Env.define` (not `load_string`) to avoid reader mixed-branch issues on macro bodies.
 
+### `apply` (§7.9)
+
+Surface primitive exposing §5.3 `apply`: `(apply operator args-tree)` evaluates `operator` to a callable, requires `args-tree` to be a tree, and dispatches on its branches as a normal call. See [TREESP.md](TREESP.md) §7.9.
+
+## Conformance suite (Phase 6)
+
+- **[examples/](examples/)** — one `.treesp` program per spec §10 section, with `.treesp.expected` golden stdout.
+- **[lib/runner.ml](lib/runner.ml)** — `run_file` / `run_program` with stdout capture (via `Printer.with_output_buffer`).
+- **`dune runtest`** — `conformance_test.ml` compares each example to its golden file.
+- **`treesp test [FILE …]`** — same checks from the CLI (`treesp record` regenerates `.expected` files).
+
+Project root is discovered by walking up from the cwd for an `examples/` directory (or `TREESP_ROOT`).
+
 ## Environment
 
 Environments are trees tagged `env` with symbol bindings as branches and an optional `parent` branch linking to the enclosing frame. Lookup walks `parent` for lexical scoping.

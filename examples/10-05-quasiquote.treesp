@@ -1,0 +1,7 @@
+(define x 10)
+(define form
+  `(node expr
+     (op +)
+     (left 1)
+     (right ,x)))
+form

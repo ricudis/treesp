@@ -1,0 +1,2 @@
+(define t (node a (x 2) (y 3)))
+(apply + (map-branches t (lambda (v) (if (number? v) v 0))))

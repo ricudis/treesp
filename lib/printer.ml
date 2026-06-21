@@ -46,8 +46,25 @@ and format_tree tag branches =
     in
     "(" ^ tag_s ^ " " ^ String.concat " " parts ^ ")"
 
+let output_sink = ref `Stdout
+
+let with_output_buffer buf f =
+  let old = !output_sink in
+  output_sink := `Buffer buf;
+  Fun.protect f ~finally:(fun () -> output_sink := old)
+
+let emit s =
+  match !output_sink with
+  | `Stdout -> print_string s
+  | `Buffer buf -> Buffer.add_string buf s
+
+let emitln () =
+  match !output_sink with
+  | `Stdout -> print_newline ()
+  | `Buffer buf -> Buffer.add_char buf '\n'
+
 let string_of_value v = format_value v
 
-let display v = print_string (format_value v)
+let display v = emit (format_value v)
 
-let newline () = print_newline ()
+let newline () = emitln ()

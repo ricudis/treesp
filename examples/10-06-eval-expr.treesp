@@ -1,0 +1,6 @@
+(define eval-expr
+  (lambda (t)
+    (match t
+      ((?? n) (number? n) n))))
+(eval-expr 5)
+(match (node + (arg0 1) (arg1 2)) ((+ (arg0 (?? a)) (arg1 (?? b))) (+ a b)))

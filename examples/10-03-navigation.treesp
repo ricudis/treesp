@@ -1,0 +1,13 @@
+(define t
+  (node expr
+    (op +)
+    (left (node expr
+            (op *)
+            (left 2)
+            (right 3)))
+    (right 1)))
+(tag t)
+(branch t op)
+(branch (branch t left) op)
+(path t left left)
+(path t right)
