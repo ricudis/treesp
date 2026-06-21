@@ -792,7 +792,7 @@ Branch access for variadic ops: all `arg0`, `arg1`, … branches are collected i
 
 - `arg0` (`operator`): evaluated; must be a primitive or closure.
 - `arg1` (`args-tree`): evaluated; must be a **tree**. Its branches (in insertion order, typically `arg0`…`argN`) form the argument branch map for the call.
-- Variadic primitives (`+`, `*`, etc.) collect all positional branches from `args-tree` in order (§7.7).
+- Variadic primitives (`+`, `*`, etc.) collect positional `arg0`…`argN` branches from `args-tree` when present; otherwise they collect **all branch values** in insertion order (so `map-branches` results work without relabeling).
 - Closures bind parameters from `args-tree` branches as in a normal call.
 - Macros cannot be applied directly; use macro expansion via call syntax instead.
 
@@ -948,32 +948,27 @@ Desugared:
 
 ### 10.4 `fold-tree` over an AST
 
-Sum all numeric leaves:
+Sum all numeric leaves with recursive `map-branches` (full example in [`examples/10-04-tree-sum.treesp`](../examples/10-04-tree-sum.treesp)):
 
 ```treesp
-(define (tree-sum t)
-  (if (atom? t)
-      (if (number? t) t 0)
-      (let ((children (branches t)))
-        (fold-tree children
-          (lambda (x) (if (number? x) x 0))
-          (lambda (tag bs)
-            (+ (branch bs arg0)
-               (branch bs arg1)
-               (branch bs arg2)))))))
+(define leaf-value
+  (lambda (x)
+    (if (test (number? x))
+        (then x)
+        (else 0))))
 
-;; Simpler version using map-branches on the original tree:
-(define (tree-sum t)
-  (if (atom? t)
-      (if (number? t) t 0)
-      (+ (fold-tree t
-            (lambda (x) (if (number? x) x 0))
-            (lambda (tag branches)
-              0))
-         (apply + (map-branches t tree-sum)))))
+(define tree-sum
+  (lambda (t)
+    (if (test (atom? t))
+        (then (leaf-value t))
+        (else (apply + (map-branches t tree-sum))))))
+
+(tree-sum ast)    ; => 6 on the §10.3 AST (2 + 3 + 1)
 ```
 
-Note: `apply` on `+` with multiple numeric branches uses positional `argN` collection (§7.9).
+Non-numeric atoms (operators, tags) contribute `0` via `leaf-value`. `apply` passes labeled branches from `map-branches` to `+` in insertion order when no `argN` labels are present (§7.9).
+
+Note: `apply` on `+` with an `argN`-only args tree uses positional collection; labeled branch maps fall back to all branch values in order.
 
 ### 10.5 Quasiquote building a tree
 

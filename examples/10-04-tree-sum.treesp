@@ -1,2 +1,35 @@
-(define t (node a (x 2) (y 3)))
-(apply + (map-branches t (lambda (v) (if (number? v) v 0))))
+; §10.4 — recursive tree-sum over an AST
+;
+; Sum every numeric leaf. Operators, tags, and other atoms contribute 0.
+; Pure recursion via map-branches and apply — no hardcoded arg0/arg1/arg2.
+
+(define ast
+  (node expr
+    (op +)
+    (left (node expr
+            (op *)
+            (left 2)
+            (right 3)))
+    (right 1)))
+
+(define leaf-value
+  (lambda (x)
+    (if (test (number? x))
+        (then x)
+        (else 0))))
+
+(define tree-sum
+  (lambda (t)
+    (if (test (atom? t))
+        (then (leaf-value t))
+        (else (apply + (map-branches t tree-sum))))))
+
+(tree-sum ast)
+
+(define bush
+  (node forest
+    (north (node pine (needles 7) (cones 3)))
+    (south (node oak (rings 100) (acorns (node pile (count 5)))))
+    (east 42)))
+
+(tree-sum bush)

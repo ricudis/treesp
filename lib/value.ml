@@ -96,7 +96,8 @@ let collect_arg_branches branches =
       loop (i + 1) (List.assoc label branches :: acc)
     else List.rev acc
   in
-  loop 0 []
+  let positional = loop 0 [] in
+  if positional <> [] then positional else List.map snd branches
 
 let positional_pairs branches =
   let rec loop i acc =

@@ -130,7 +130,11 @@ let traversal_tests =
          eval_string
            "(filter-branches (node t (keep 1) (drop 2)) (lambda (params (lbl) (val)) (equal? lbl 'keep)))"
        in
-       check_equal "filter-branches" (make_tree (sym "t") [ ("keep", Num 1.0) ]) v)
+       check_equal "filter-branches" (make_tree (sym "t") [ ("keep", Num 1.0) ]) v);
+    test_case "apply + labeled branches" `Quick (fun () ->
+       check_num "apply + labeled sum"
+         6.0
+         (eval_string "(apply + (node v (a 1) (b 2) (c 3)))"))
   ]
 
 let phase5_tests =
