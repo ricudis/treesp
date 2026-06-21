@@ -126,6 +126,77 @@ let traversal_tests =
        check_equal "filter-branches" (make_tree (sym "t") [ ("keep", Num 1.0) ]) v)
   ]
 
+let phase5_tests =
+  [ test_case "let" `Quick (fun () ->
+       check_num "let" 11.0 (eval_string "(let ((x 10)) (+ x 1))"));
+    test_case "let multiple bindings" `Quick (fun () ->
+       check_num "let multi"
+         30.0
+         (eval_string "(let ((x 10) (y 20)) (+ x y))"));
+    test_case "set!" `Quick (fun () ->
+       let rt = fresh () in
+       ignore (load_string rt "(define x 1)");
+       let v = eval rt (Treesp.Reader.read_one "(set! x 2)") in
+       check bool "set! returns void" true (is_void v);
+       check_num "set! mutated" 2.0 (eval rt (Treesp.Reader.read_one "x")));
+    test_case "cond" `Quick (fun () ->
+       check_num "cond first match" 1.0
+         (eval_string "(cond (#f 0) (#t 1) (#t 2))");
+       check_num "cond else" 99.0 (eval_string "(cond (#f 0) (else 99))"));
+    test_case "§10.5 quasiquote" `Quick (fun () ->
+       let rt = fresh () in
+       ignore (load_string rt "(define x 10)");
+       let v =
+         eval rt
+           (Treesp.Reader.read_one
+              "`(node expr (op +) (left 1) (right ,x))")
+       in
+       check_equal "quasiquote node"
+         (make_tree (sym "node")
+            [
+              ("arg0", sym "expr");
+              ("arg1", make_tree (sym "op") [ ("arg0", sym "+") ]);
+              ("arg2", make_tree (sym "left") [ ("arg0", Num 1.0) ]);
+              ("arg3", make_tree (sym "right") [ ("arg0", Num 10.0) ]);
+            ])
+         v);
+    test_case "§4.4 splice" `Quick (fun () ->
+       let rt = fresh () in
+       ignore
+         (load_string rt
+            "(define a 1) (define b 2)");
+       let v =
+         eval rt
+           (Treesp.Reader.read_one
+              "`(node root (x ,a) ,@(branches (node extra (y ,b) (z 3))))")
+       in
+       check bool "node tag" true (equal (tree_tag v) (sym "node"));
+       check_equal "root branch" (sym "root") (branch_get v "arg0");
+       check_num "x branch" 1.0 (branch_get (branch_get v "arg1") "arg0");
+       check_num "y branch" 2.0 (branch_get v "y");
+       check_num "z branch" 3.0 (branch_get v "z"));
+    test_case "splice duplicate label" `Quick (fun () ->
+       match
+         eval_string
+           "`(node r ,@(branches (node ua (m 1))) ,@(branches (node ub (m 2))))"
+       with
+       | exception Treesp_error msg when String.contains msg 'd' -> ()
+       | v -> Alcotest.failf "expected duplicate label error, got %s" (Treesp.Printer.string_of_value v));
+    test_case "when" `Quick (fun () ->
+       check_num "when true" 3.0 (eval_string "(when #t (+ 1 2))");
+       check bool "when false" true (is_void (eval_string "(when #f (+ 1 2))")));
+    test_case "match number" `Quick (fun () ->
+       check_num "match number"
+         5.0
+         (eval_string
+            "(match 5 ((?? n) (number? n) n))"));
+    test_case "match tree" `Quick (fun () ->
+       check_num "match +"
+         3.0
+         (eval_string
+            "(match (node + (arg0 1) (arg1 2)) ((+ (arg0 (?? a)) (arg1 (?? b))) (+ a b)))"));
+  ]
+
 let () =
   run "eval"
     [
@@ -135,4 +206,5 @@ let () =
       ("navigation", navigation_tests);
       ("graft/prune", graft_prune_tests);
       ("traversal", traversal_tests);
+      ("phase 5", phase5_tests);
     ]

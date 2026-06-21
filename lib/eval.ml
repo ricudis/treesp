@@ -2,8 +2,13 @@ open Value
 
 type runtime = { mutable env : Env.t; mutable input : in_channel }
 
+type macro_spec = Normal of string | Rest of string
+
 let special_forms =
-  [ "quote"; "if"; "lambda"; "define"; "begin"; "and"; "or"; "node" ]
+  [
+    "quote"; "if"; "lambda"; "define"; "define-macro"; "begin"; "and"; "or"; "node";
+    "let"; "cond"; "set!"; "match"; "quasiquote";
+  ]
 
 let is_special_form = function Sym s -> List.mem s special_forms | _ -> false
 
@@ -17,13 +22,13 @@ let get_branch_opt branches label =
 let if_branches branches =
   match get_branch_opt branches "test", get_branch_opt branches "then", get_branch_opt branches "else" with
   | Some t, Some th, Some el -> (t, th, el)
+  | Some t, Some th, None -> (t, th, Void)
   | _ -> (
       let pos = positional_pairs branches in
-      if List.length pos < 3 then raise (Treesp_error "if: wrong arity");
-      let _, t = List.nth pos 0 in
-      let _, th = List.nth pos 1 in
-      let _, el = List.nth pos 2 in
-      (t, th, el))
+      match pos with
+      | [ (_, t); (_, th) ] -> (t, th, Void)
+      | [ (_, t); (_, th); (_, el) ] -> (t, th, el)
+      | _ -> raise (Treesp_error "if: wrong arity"))
 
 let lambda_parts branches =
   match get_branch_opt branches "params", get_branch_opt branches "body" with
@@ -130,6 +135,12 @@ let rec apply_prim rt name branches =
   | "newline" ->
       Printer.newline ();
       Void
+  | "error" -> (
+      match args with
+      | [ msg ] ->
+          Printer.display msg;
+          raise (Treesp_error (Printer.string_of_value msg))
+      | _ -> raise (Treesp_error "wrong arity"))
   | "branch?" -> (
       match args with
       | [ tree; Sym label ] -> Bool (branch_has tree label)
@@ -182,6 +193,7 @@ and apply_callable rt callable args =
   match callable with
   | Callable (Prim name) -> apply_prim rt name branches
   | Callable (Closure { env; params; body }) -> apply_closure rt env params body branches
+  | Callable (Macro _) -> raise (Treesp_error "macro called without expansion")
   | _ -> raise (Treesp_error "not callable")
 
 and fold_tree rt v leaf_fn node_fn =
@@ -268,6 +280,9 @@ and eval_tree rt tag branches =
     | Callable (Prim name) ->
         let evaluated = eval_prim_args rt name branches in
         apply_prim rt name evaluated
+    | Callable (Macro { env; params; body }) ->
+        let expanded = apply_macro rt env params body branches in
+        eval_expr rt expanded
     | Callable (Closure { env; params; body }) ->
         let evaluated = List.map (fun (l, e) -> (l, eval_expr rt e)) branches in
         apply_closure rt env params body evaluated
@@ -287,6 +302,12 @@ and eval_special rt name branches =
   | "and" -> eval_and rt branches
   | "or" -> eval_or rt branches
   | "node" -> eval_node rt branches
+  | "let" -> eval_let rt branches
+  | "cond" -> eval_cond rt branches
+  | "set!" -> eval_set rt branches
+  | "match" -> eval_match rt branches
+  | "quasiquote" -> Quasiquote.expand eval_expr rt (get_branch branches (arg_label 0))
+  | "define-macro" -> eval_define_macro rt branches
   | _ -> raise (Treesp_error ("unknown special form: " ^ name))
 
 and eval_node rt branches =
@@ -356,6 +377,251 @@ and eval_or rt branches =
   in
   loop exprs
 
+and macro_specs params =
+  match params with
+  | Tree { tag = Sym "params"; branches } ->
+      List.filter_map
+        (fun (_, v) ->
+          match v with
+          | Tree { tag = Sym "rest"; branches = [ (_, name) ] } -> Some (Rest (param_name name))
+          | Tree { tag = Sym "_"; _ } -> None
+          | Tree { branches = [ (_, Sym "_") ]; _ } -> None
+          | Tree { tag = Sym s; branches = [] } -> Some (Normal s)
+          | Sym s -> Some (Normal s)
+          | _ -> raise (Treesp_error "define-macro: invalid parameter"))
+        (positional_pairs branches)
+  | Tree { tag = Sym t; branches } ->
+      Normal t
+      :: List.filter_map
+           (fun (_, v) ->
+             match v with
+             | Tree { tag = Sym "rest"; branches = [ (_, name) ] } -> Some (Rest (param_name name))
+             | Tree { tag = Sym "_"; _ } -> None
+             | Tree { branches = [ (_, Sym "_") ]; _ } -> None
+             | Tree { tag = Sym s; branches = [] } -> Some (Normal s)
+             | Sym s -> Some (Normal s)
+             | _ -> None)
+           (positional_pairs branches)
+  | Sym s -> [ Normal s ]
+  | _ -> raise (Treesp_error "define-macro: invalid parameter list")
+
+and macro_name_from_params params =
+  match params with
+  | Tree { tag = Sym "params"; branches } -> (
+      match positional_pairs branches with
+      | (_, Tree { tag = Sym name; branches = [] }) :: _ -> name
+      | (_, Sym name) :: _ -> name
+      | _ -> raise (Treesp_error "define-macro: missing macro name"))
+  | Tree { tag = Sym name; _ } -> name
+  | Sym name -> name
+  | _ -> raise (Treesp_error "define-macro: invalid macro name")
+
+and make_begin_tree values =
+  make_tree (sym "begin") (List.mapi (fun i v -> (arg_label i, v)) values)
+
+and apply_macro rt env params body call_branches =
+  let specs = macro_specs params in
+  let args = collect_arg_branches call_branches in
+  let rec bind specs args acc =
+    match (specs, args) with
+    | [], [] -> List.rev acc
+    | [], _ :: _ -> raise (Treesp_error "macro: too many arguments")
+    | Rest name :: _, rest -> List.rev ((name, make_begin_tree rest) :: acc)
+    | Normal name :: specs, arg :: args -> bind specs args ((name, arg) :: acc)
+    | Normal _ :: _, [] -> raise (Treesp_error "macro: wrong arity")
+  in
+  let bindings = bind specs args [] in
+  let saved = rt.env in
+  rt.env <- Env.extend env bindings;
+  let result = eval_expr rt body in
+  rt.env <- saved;
+  result
+
+and binding_pair = function
+  | Tree { tag = Sym name; branches = [ (_, init) ] } -> (name, init)
+  | _ -> raise (Treesp_error "let: invalid binding")
+
+and let_bindings tree =
+  let rec extract = function
+    | Tree { tag = Sym name; branches = [ (_, init) ] } -> [ (name, init) ]
+    | Tree { tag; branches = [] } -> [ binding_pair tag ]
+    | Tree { tag; branches } ->
+        let tag_bindings =
+          match tag with
+          | Tree { tag = Sym _; branches = [ _ ] } -> extract tag
+          | _ -> []
+        in
+        let explicit_bindings =
+          List.filter_map
+            (fun (label, init) ->
+              if is_arg_label label then None else Some (label, init))
+            branches
+        in
+        let nested =
+          List.concat_map
+            (fun (label, b) -> if is_arg_label label then extract b else [])
+            branches
+        in
+        tag_bindings @ explicit_bindings @ nested
+    | _ -> raise (Treesp_error "let: invalid bindings")
+  in
+  extract tree
+
+and eval_let rt branches =
+  let pos = positional_pairs branches in
+  match pos with
+  | [ (_, bindings_tree); (_, body) ] ->
+      let saved = rt.env in
+      let bindings =
+        List.map
+          (fun (name, init) ->
+            let v = eval_expr rt init in
+            (name, v))
+          (let_bindings bindings_tree)
+      in
+      rt.env <- Env.extend rt.env bindings;
+      let result = eval_expr rt body in
+      rt.env <- saved;
+      result
+  | _ -> raise (Treesp_error "let: invalid form")
+
+and eval_cond_clause rt clause =
+  match clause with
+  | Tree { tag = Sym "else"; branches } -> (
+      match collect_arg_branches branches with
+      | [ e ] -> Some e
+      | _ -> raise (Treesp_error "cond: invalid else clause"))
+  | Tree { tag = test; branches } -> (
+      match collect_arg_branches branches with
+      | [ e ] when truthy (eval_expr rt test) -> Some e
+      | [ _ ] -> None
+      | _ -> raise (Treesp_error "cond: invalid clause"))
+  | _ -> raise (Treesp_error "cond: invalid clause")
+
+and eval_cond rt branches =
+  let clauses = collect_arg_branches branches in
+  let rec loop = function
+    | [] -> raise (Treesp_error "cond: no matching clause")
+    | clause :: rest -> (
+        match eval_cond_clause rt clause with
+        | Some e -> eval_expr rt e
+        | None -> loop rest)
+  in
+  loop clauses
+
+and eval_set rt branches =
+  match positional_pairs branches with
+  | [ (_, Sym name); (_, value) ] ->
+      Env.set rt.env name (eval_expr rt value);
+      Void
+  | _ -> raise (Treesp_error "set!: invalid form")
+
+and pattern_explicit branches =
+  List.exists (fun (label, _) -> not (is_arg_label label)) branches
+
+and parse_clause clause =
+  match clause with
+  | Tree { tag = pattern; branches } -> (
+      match collect_arg_branches branches with
+      | [ result ] -> (pattern, None, result)
+      | [ guard; result ] -> (pattern, Some guard, result)
+      | _ -> raise (Treesp_error "match: invalid clause"))
+  | _ -> raise (Treesp_error "match: invalid clause")
+
+and match_pattern pattern value =
+  let rec go pat v =
+    match pat with
+    | Void | Bool _ | Num _ | Str _ | Sym _ -> if equal pat v then Some [] else None
+    | Callable _ -> None
+    | Tree { tag = Sym "??"; branches = [ (_, Sym name) ] } -> Some [ (name, v) ]
+    | Tree { tag; branches } -> (
+        match v with
+        | Tree { tag = vtag; branches = vbranches } ->
+            if not (equal tag vtag) then None
+            else if pattern_explicit branches then match_labeled branches vbranches
+            else match_positional branches vbranches
+        | _ -> None)
+  and match_positional pbranches vbranches =
+    let pvals = collect_arg_branches pbranches in
+    let vvals = collect_arg_branches vbranches in
+    if List.length pvals <> List.length vvals then None
+    else merge_matches (List.map2 go pvals vvals)
+  and match_labeled pbranches vbranches =
+    List.fold_left
+      (fun acc (label, psub) ->
+        match acc with
+        | None -> None
+        | Some bindings -> (
+            match List.assoc_opt label vbranches with
+            | None -> None
+            | Some vsub -> (
+                match go psub vsub with
+                | None -> None
+                | Some b2 -> merge_bindings bindings b2)))
+      (Some []) pbranches
+  and merge_matches results =
+    List.fold_left
+      (fun acc r ->
+        match (acc, r) with
+        | None, _ | _, None -> None
+        | Some bs1, Some bs2 -> merge_bindings bs1 bs2)
+      (Some []) results
+  and merge_bindings bs1 bs2 =
+    try
+      Some (List.fold_left (fun acc (n, v) -> bind_name acc n v) bs1 bs2)
+    with Treesp_error _ -> None
+  and bind_name bindings name value =
+    if List.mem_assoc name bindings then
+      let v' = List.assoc name bindings in
+      if not (equal v' value) then raise (Treesp_error "match: inconsistent binding")
+      else bindings
+    else (name, value) :: bindings
+  in
+  go pattern value
+
+and eval_match rt branches =
+  match positional_pairs branches with
+  | (_, scrutinee) :: clause_pairs ->
+      let value = eval_expr rt scrutinee in
+      let rec try_clauses = function
+        | [] -> raise (Treesp_error "match: no matching clause")
+        | (_, clause) :: rest -> (
+            let pattern, guard, result = parse_clause clause in
+            match match_pattern pattern value with
+            | None -> try_clauses rest
+            | Some bindings -> (
+                let saved = rt.env in
+                rt.env <- Env.extend rt.env bindings;
+                let ok =
+                  match guard with
+                  | None -> true
+                  | Some g -> truthy (eval_expr rt g)
+                in
+                if ok then (
+                  let r = eval_expr rt result in
+                  rt.env <- saved;
+                  r)
+                else (
+                  rt.env <- saved;
+                  try_clauses rest)))
+      in
+      try_clauses clause_pairs
+  | _ -> raise (Treesp_error "match: invalid form")
+
+and eval_define_macro rt branches =
+  let pos = positional_pairs branches in
+  match pos with
+  | [ (_, Sym name); (_, body) ] ->
+      let macro = Callable (Macro { env = rt.env; params = Sym name; body }) in
+      Env.define rt.env name macro;
+      Void
+  | [ (_, params_tree); (_, body) ] ->
+      let name = macro_name_from_params params_tree in
+      let macro = Callable (Macro { env = rt.env; params = params_tree; body }) in
+      Env.define rt.env name macro;
+      Void
+  | _ -> raise (Treesp_error "define-macro: invalid form")
+
 and apply_closure rt env params body branches =
   let param_names = param_labels params in
   let arg_values = collect_arg_branches branches in
@@ -412,21 +678,35 @@ let primitive_names =
     "not";
     "display";
     "newline";
+    "error";
   ]
 
 let install_primitives env =
   List.iter (fun name -> Env.define env name (Callable (Prim name))) primitive_names
 
-let make_runtime () =
-  let rt = { env = Env.empty (); input = stdin } in
-  install_primitives rt.env;
-  rt
+let install_prelude env =
+  let when_params = Reader.read_one "(params (when _) (test) (rest body))" in
+  let when_body = Reader.read_one "(quasiquote (if (test (unquote test)) (then (begin ,@body)) (else ())))" in
+  Env.define env "when" (Callable (Macro { env; params = when_params; body = when_body }));
+  let defun_params = Reader.read_one "(params (defun _) (name) (params) (rest body))" in
+  let defun_body =
+    Reader.read_one
+      "(node define (arg0 (unquote name)) (arg1 (lambda (params (unquote params)) (body (begin \
+       ,@body)))))"
+  in
+  Env.define env "defun" (Callable (Macro { env; params = defun_params; body = defun_body }))
 
 let eval rt expr = eval_expr rt expr
 
 let load_string rt source =
   let forms = Reader.read_all source in
   List.fold_left (fun _ form -> eval rt form) Void forms
+
+let make_runtime () =
+  let rt = { env = Env.empty (); input = stdin } in
+  install_primitives rt.env;
+  install_prelude rt.env;
+  rt
 
 let load_file rt path =
   let source = In_channel.with_open_text path In_channel.input_all in

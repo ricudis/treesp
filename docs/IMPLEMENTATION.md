@@ -17,7 +17,7 @@ This document records implementation decisions for the reference interpreter. Th
 | Scoping | **Lexical** | Matches closure semantics in §5.3; avoids surprise |
 | Extra `argN` on user calls | **Error** | Catches arity mistakes early |
 | Macro hygiene | **Non-hygienic** | Expansion evaluated in macro env, result re-evaluated in caller env per §8.2 |
-| Rest parameters | **Deferred** | Use explicit `arg0`…`argN`; macro rest handled ad hoc |
+| Rest parameters | **`(rest name)` in macro params** | Collects remaining call branches into a `begin` tree; enables `when` / `defun` |
 | Errors | **Host exceptions** | String messages; no exception trees |
 | Numeric tower | **IEEE 754 doubles** | Per spec §2.1 |
 | Module system | **Deferred** | Single prelude environment |
@@ -59,6 +59,43 @@ For `graft`, `prune`, `branch`, `branch?`, and label steps of `path`, symbol arg
 ### `walk-tree`
 
 Pre-order: `pre-fn` on the current node, then each child in branch order, then `post-fn` on the current node. Returns void.
+
+## Special forms (Phase 5)
+
+### `let`, `cond`, `set!`, `match`
+
+- **`let`** — bindings are parsed from the bindings tree: each binding is a unary `(name init)` subtree; a single `((x 10))` wrapper is accepted. When the reader desugars `((x 10) (y 20))` as an explicit-label tree (first binding as tag, rest as labeled branches), `let_bindings` still extracts all `(name init)` pairs. Initializers are evaluated in the outer environment; the body runs in an extended frame.
+- **`cond`** — clauses are positional branches. A unary clause `(test expr)` uses the tag as the test expression. `else` as tag always matches.
+- **`set!`** — `arg0` is a literal symbol (`eval-data`); `arg1` is evaluated; `Env.set` mutates the binding; returns `Void`.
+- **`match`** — scrutinee is evaluated; clauses are tried in order. Each clause is a 2-branch `(pattern result)` or 3-branch `(pattern guard result)` tree. Patterns support atoms, `(?? var)`, positional `(tag p …)`, and labeled `(tag (l p) …)`. Guards must be truthy. No match → error.
+
+A minimal **`error`** primitive is provided for match fallbacks (full stdlib deferred to v0.3).
+
+### `quasiquote`
+
+Implemented as a **special form** (not a macro) to avoid bootstrap circularity. `lib/quasiquote.ml` walks the template:
+
+- atoms pass through unchanged
+- `(unquote e)` → evaluate `e`
+- `(unquote-splicing e)` → expand unquotes in `e`, then evaluate; result must be a tree; graft its branches into the parent; duplicate labels → error
+- other trees → recurse into children
+
+The reader treats `unquote` / `unquote-splicing` compounds as template markers, not explicit branch labels (so `,x` inside a template desugars to a proper `unquote` subtree rather than label `unquote`).
+
+### Macros
+
+```ocaml
+callable =
+  | Prim of string
+  | Closure of { env; params; body }
+  | Macro of { env; params; body }
+```
+
+- **`define-macro`** mirrors `define` (positional or function-shaped first branch).
+- On call, after special-form dispatch: if the operator is a `Macro`, **`apply_macro`** binds parameters to **unevaluated** branch subtrees, evaluates the macro body in the macro's captured environment, then **`eval_expr`** re-evaluates the expanded tree in the caller environment (non-hygienic, per §8.2).
+- **Rest parameters:** a param subtree `(rest name)` collects all remaining call branches into a synthetic `begin` tree. Enables prelude macros `when` and `defun`.
+
+Prelude macros are installed in `make_runtime` via `Env.define` (not `load_string`) to avoid reader mixed-branch issues on macro bodies.
 
 ## Environment
 

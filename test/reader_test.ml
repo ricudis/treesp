@@ -48,7 +48,13 @@ let extras =
        let vs = read_all "1 2 3" in
        check int "count" 3 (List.length vs));
     test_case "comment skipped" `Quick (fun () ->
-       check bool "num" true (equal (read_ok "42 ; comment") (Num 42.0)))
+       check bool "num" true (equal (read_ok "42 ; comment") (Num 42.0)));
+    test_case "unquote not explicit label" `Quick (fun () ->
+       let v = read_ok "`,x" in
+       check bool "quasiquote tag" true (equal (tree_tag v) (sym "quasiquote"));
+       match branch_get v "arg0" with
+       | Tree { tag = Sym "unquote"; branches = [ ("arg0", Sym "x") ] } -> ()
+       | other -> Alcotest.failf "expected unquote tree, got %s" (Treesp.Printer.string_of_value other))
   ]
 
 let () =

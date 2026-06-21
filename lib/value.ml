@@ -1,6 +1,7 @@
 type callable =
   | Prim of string
   | Closure of { env : value ref; params : value; body : value }
+  | Macro of { env : value ref; params : value; body : value }
 
 and value =
   | Void
@@ -33,6 +34,8 @@ let is_atom = function
 let is_tree = function Tree _ -> true | _ -> false
 let is_sym = function Sym _ -> true | _ -> false
 let is_callable = function Callable _ -> true | _ -> false
+
+let is_macro = function Callable (Macro _) -> true | _ -> false
 
 let sym_name = function Sym s -> s | _ -> raise (Treesp_error "expected symbol")
 
@@ -142,6 +145,8 @@ and callable_equal c1 c2 =
   match (c1, c2) with
   | Prim a, Prim b -> a = b
   | Closure { env = _; params = p1; body = b1 }, Closure { env = _; params = p2; body = b2 } ->
+      equal p1 p2 && equal b1 b2
+  | Macro { env = _; params = p1; body = b1 }, Macro { env = _; params = p2; body = b2 } ->
       equal p1 p2 && equal b1 b2
   | _ -> false
 

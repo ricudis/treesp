@@ -1,6 +1,7 @@
 type callable =
   | Prim of string
   | Closure of { env : value ref; params : value; body : value }
+  | Macro of { env : value ref; params : value; body : value }
 
 and value =
   | Void
@@ -21,6 +22,7 @@ val is_atom : value -> bool
 val is_tree : value -> bool
 val is_sym : value -> bool
 val is_callable : value -> bool
+val is_macro : value -> bool
 val sym_name : value -> string
 val bool_val : value -> bool option
 val num_val : value -> float option
@@ -41,3 +43,4 @@ val equal : value -> value -> bool
 val eq_phys : value -> value -> bool
 val truthy : value -> bool
 val param_labels : value -> string list
+val param_name : value -> string

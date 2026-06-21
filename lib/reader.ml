@@ -120,10 +120,16 @@ let is_explicit_raw = function
   | Raw_compound [ Raw_atom (Sym _); _ ] -> true
   | _ -> false
 
+let is_unquote_marker = function
+  | Raw_compound [ Raw_atom (Sym "unquote"); _ ] -> true
+  | Raw_compound [ Raw_atom (Sym "unquote-splicing"); _ ] -> true
+  | _ -> false
+
 let use_explicit_mode branches =
   branches <> []
   && List.for_all is_explicit_raw branches
   && not (List.exists (function Raw_atom _ -> true | _ -> false) branches)
+  && not (List.exists is_unquote_marker branches)
 
 let has_bare_atom branches =
   List.exists (function Raw_atom _ -> true | _ -> false) branches
