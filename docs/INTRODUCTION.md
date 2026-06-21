@@ -34,24 +34,18 @@ Now it's adamo's turn.
 
 We counter-challenge him to write an **editor** in TREESP.
 
-Not a toy REPL. Not a hello-world interpreter. An editor — the kind of program that edits things, preferably without secretly being a linked list wearing a trench coat.
+Not a toy REPL. Not a hello-world interpreter. An editor — the kind of program that edits things, preferably without secretly being a linked list wearing a trench coat. Trees editing trees. It's only natural.
 
-Trees editing trees. It's only natural.
+There is already an editor out there — you know the one — that has been written in Lisp since the mid-1980s, extensible in Lisp, configured in Lisp, and occasionally accused of *being* Lisp with a text widget glued on. It spent decades pretending a thousand tiny `cons` cells were a document. TREESP offers adamo a chance at redemption. Some ideas we will absolutely judge him on:
 
-### Emacs hints (optional, suspiciously specific)
-
-If adamo needs a north star, Emacs is right there. It is, after all, a text editor that spent decades pretending a thousand tiny `cons` cells were a document. TREESP offers a chance at redemption.
-
-Some ideas we will absolutely judge him on:
-
-- **Buffer as tree.** The document is not a line list. It is a labeled tree — paragraphs, expressions, branches. Navigate with `path`, not `cdr`. If he implements `forward-sexp`, it should walk the tree, not skip to the next comma in a JSON file.
+- **Buffer as tree.** The document is not a line list. It is a labeled tree — paragraphs, expressions, branches. Navigate with `path`, not `cdr`. `forward-sexp` should walk the tree, not skip to the next comma in a JSON file.
 - **Structural editing.** `kill-branch` instead of `kill-line`. `graft` instead of `yank`. The kill-ring should be a forest, not a deque pretending to be noble.
 - **A major mode for TREESP.** Syntax highlighting that respects tree shape. Parenthesis matching that follows branches, not a stack of lonely `(`.
-- **`M-x eval-branch`.** Point is not a cursor offset into a string. Point is a position in the tree. Evaluate the subtree under point. If the whole buffer is wrong, that's a user configuration issue.
-- **The minibuffer speaks TREESP.** Commands are trees. `(find-file (path projects treesp README.md))` — readable, graftable, no alist in sight.
-- **Tree-sitter, but honest.** Emacs finally got a parse-tree library. Adamo can skip the adapter layer and just... be the tree.
+- **Eval at point.** Point is not a cursor offset into a string. Point is a position in the tree. `C-x C-e` should evaluate the subtree under point. If the whole buffer is wrong, that's a user configuration issue — and we expect a large one, probably in a dotfile with parentheses.
+- **The one-line prompt at the bottom speaks TREESP.** Commands invoked via `M-x` are trees. `(find-file (path projects treesp README.md))` — readable, graftable, no alist in sight.
+- **Tree-sitter, but honest.** That other editor finally bolted on a parse-tree library last decade and called it progress. Adamo can skip the adapter layer and just... be the tree.
 
-We are not saying it has to be Emacs. We are saying Emacs has been asking for this since 1985, and the request was filed under a `TODO` in a list somewhere. We find that offensive.
+That editor has been asking for this since 1985. The request was filed under a `TODO` in a list somewhere. We find that offensive.
 
 ---
 
