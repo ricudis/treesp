@@ -30,6 +30,7 @@ let rec format_value v =
       if String.contains s '.' then s else s ^ ".0"
   | Str s -> escape_string s
   | Sym s -> if needs_quote s then raise (Treesp_error ("cannot print symbol: " ^ s)) else s
+  | Callable _ -> "#<callable>"
   | Tree { tag; branches } -> format_tree tag branches
 
 and format_tree tag branches =

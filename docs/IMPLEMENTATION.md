@@ -37,6 +37,7 @@ value =
 - Trees are **immutable**; `graft`/`prune` return copies.
 - Symbols are interned strings.
 - `display` always prints desugared `argN` form (allowed per §7.8).
+- Reader classifies explicit vs positional branches from **raw S-expressions** before child desugaring (§4.2).
 
 ## Environment
 

@@ -24,12 +24,16 @@ let appendix_a =
     test_case "quote abbrev" `Quick (fun () ->
        let v = read_ok "'x" in
        check bool "quote tag" true (equal (tree_tag v) (sym "quote"));
-       check bool "quoted x" true (equal (branch_get v "arg0") (sym "x")))
+       check bool "quoted x" true (equal (branch_get v "arg0") (sym "x")));
+    test_case "nested unary call not explicit" `Quick (fun () ->
+       let v = read_ok "(* n (fact (- n 1)))" in
+       check bool "tree?" true (is_tree v);
+       ignore v)
   ]
 
 let reader_errors =
   [ test_case "unclosed paren" `Quick (fun () -> expect_error "(f 1");
-    test_case "mixed branches" `Quick (fun () -> expect_error "(f a (x 1))");
+    test_case "mixed branches" `Quick (fun () -> expect_error "(foo (a 1) (b c d))");
     test_case "duplicate label" `Quick (fun () -> expect_error "(f (x 1) (x 2))");
     test_case "malformed number" `Quick (fun () -> expect_error "(f .)");
     test_case "trailing input" `Quick (fun () -> expect_error "() ()")

@@ -11,6 +11,11 @@ type stream = {
   mutable col : int;
 }
 
+type raw =
+  | Raw_void
+  | Raw_atom of value
+  | Raw_compound of raw list
+
 let make_stream s = { s; i = 0; line = 1; col = 1 }
 
 let eof st = st.i >= String.length st.s
@@ -111,20 +116,34 @@ let read_symbol st =
   else if name = "#f" then Bool false
   else intern name
 
-let is_explicit_label_form v =
-  match v with
-  | Tree { tag = Sym _; branches = [ (_, _) ] } -> true
+let is_explicit_raw = function
+  | Raw_compound [ Raw_atom (Sym _); _ ] -> true
   | _ -> false
 
-let desugar_compound tag branches =
+let use_explicit_mode branches =
+  branches <> []
+  && List.for_all is_explicit_raw branches
+  && not (List.exists (function Raw_atom _ -> true | _ -> false) branches)
+
+let has_bare_atom branches =
+  List.exists (function Raw_atom _ -> true | _ -> false) branches
+
+let has_multi_compound branches =
+  List.exists (function Raw_compound lst -> List.length lst > 2 | _ -> false) branches
+
+let rec desugar_raw = function
+  | Raw_void -> Void
+  | Raw_atom v -> v
+  | Raw_compound [] -> Void
+  | Raw_compound (tag :: branches) -> desugar_compound (desugar_raw tag) branches
+
+and desugar_compound tag branches =
   if branches = [] then make_tree tag []
-  else if List.exists is_explicit_label_form branches then (
-    if List.exists (fun v -> not (is_explicit_label_form v)) branches then
-      raise (Treesp_error "read: mixed branch forms");
+  else if use_explicit_mode branches then (
     let labels =
       List.map
         (function
-          | Tree { tag = Sym l; _ } -> l
+          | Raw_compound [ Raw_atom (Sym l); _ ] -> l
           | _ -> raise (Treesp_error "read: mixed branch forms"))
         branches
     in
@@ -133,48 +152,67 @@ let desugar_compound tag branches =
     let pairs =
       List.map
         (function
-          | Tree { tag = Sym l; branches = [ (_, v) ] } -> (l, v)
+          | Raw_compound [ Raw_atom (Sym l); subtree ] -> (l, desugar_raw subtree)
           | _ -> raise (Treesp_error "read: mixed branch forms"))
         branches
     in
     make_tree tag pairs)
+  else if has_bare_atom branches then
+    let pairs = List.mapi (fun i b -> (arg_label i, desugar_raw b)) branches in
+    make_tree tag pairs
+  else if List.exists is_explicit_raw branches && has_multi_compound branches then
+    raise (Treesp_error "read: mixed branch forms")
   else
-    let pairs = List.mapi (fun i v -> (arg_label i, v)) branches in
+    let pairs = List.mapi (fun i b -> (arg_label i, desugar_raw b)) branches in
     make_tree tag pairs
 
-let rec read_form st =
+let rec read_raw st =
   skip_ws st;
   if eof st then error st "read: unexpected EOF";
   match peek st with
-  | '(' -> read_compound st
-  | '"' -> read_string st
+  | '(' -> read_raw_compound st
+  | '"' -> Raw_atom (read_string st)
   | '\'' ->
       advance st;
-      let e = read_form st in
-      make_tree (intern "quote") [ (arg_label 0, e) ]
+      let e = read_raw st in
+      Raw_compound [ Raw_atom (intern "quote"); e ]
   | '`' ->
       advance st;
-      let e = read_form st in
-      make_tree (intern "quasiquote") [ (arg_label 0, e) ]
+      let e = read_raw st in
+      Raw_compound [ Raw_atom (intern "quasiquote"); e ]
   | ',' ->
       advance st;
       if not (eof st) && peek st = '@' then (
         advance st;
-        let e = read_form st in
-        make_tree (intern "unquote-splicing") [ (arg_label 0, e) ])
+        let e = read_raw st in
+        Raw_compound [ Raw_atom (intern "unquote-splicing"); e ])
       else
-        let e = read_form st in
-        make_tree (intern "unquote") [ (arg_label 0, e) ]
-  | c when c = '-' || is_digit c -> read_number st
-  | c when is_initial c -> read_symbol st
+        let e = read_raw st in
+        Raw_compound [ Raw_atom (intern "unquote"); e ]
+  | '#' ->
+      advance st;
+      (match peek st with
+      | 't' ->
+          advance st;
+          Raw_atom (Bool true)
+      | 'f' ->
+          advance st;
+          Raw_atom (Bool false)
+      | _ -> error st "read: malformed literal")
+  | '-' ->
+      if not (eof st) && is_digit (peek st) then Raw_atom (read_number st)
+      else Raw_atom (read_symbol st)
+  | c when is_digit c -> Raw_atom (read_number st)
+  | '+' -> Raw_atom (read_symbol st)
+  | c when is_initial c -> Raw_atom (read_symbol st)
   | _ -> error st "read: malformed literal"
 
-and read_compound st =
+and read_raw_compound st =
   advance st;
   skip_ws st;
   if not (eof st) && peek st = ')' then (
     advance st;
-    Void)
+    Raw_void)
   else (
     let rec gather acc =
       skip_ws st;
@@ -182,16 +220,13 @@ and read_compound st =
       if peek st = ')' then (
         advance st;
         acc)
-      else gather (read_form st :: acc)
+      else gather (read_raw st :: acc)
     in
-    let elements = List.rev (gather []) in
-    match elements with
-    | [] -> Void
-    | tag :: branches -> desugar_compound tag branches)
+    Raw_compound (List.rev (gather [])))
 
 let read_one s =
   let st = make_stream s in
-  let v = read_form st in
+  let v = desugar_raw (read_raw st) in
   skip_ws st;
   if not (eof st) then error st "read: trailing input";
   v
@@ -200,7 +235,7 @@ let read_all s =
   let st = make_stream s in
   let rec loop acc =
     skip_ws st;
-    if eof st then List.rev acc else loop (read_form st :: acc)
+    if eof st then List.rev acc else loop (desugar_raw (read_raw st) :: acc)
   in
   loop []
 

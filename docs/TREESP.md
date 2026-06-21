@@ -209,13 +209,21 @@ Fully explicit form is always equivalent:
 
 ### 3.5 Explicit labeled branches
 
-When any element after the tag is of the form `(label subtree)`, **all** elements must use explicit labels. Mixing explicit and positional forms is a reader error (§4.3).
+When any element after the tag is of the form `(label subtree)` **in source text** — a compound whose first sub-expression is a symbol atom — **all** elements after the tag must use that form, **unless** a bare atom appears among the branches (which forces positional mode for the whole compound; see §4.2). Mixing two-element labeled compounds with three-or-more-element compounds (and no bare atoms) is a reader error (§4.3).
 
 ```treesp
 (if (test (> x 0))
     (then x)
     (else 0))
 ```
+
+**Important.** Whether a branch uses explicit label syntax is determined from the **surface** S-expression before positional desugaring runs on that compound's children. A nested positional call is not an explicit labeled branch just because it later desugars to a tree with one branch:
+
+```treesp
+(* n (fact (- n 1)))    ; valid — all positional branches at this level
+```
+
+Here `(fact (- n 1))` is a positional branch (the second argument to `*`). It desugars to `(fact (arg0 (- (arg0 n) (arg1 1))))`, which is a tree with one branch — but that does **not** make it `(fact (label ...))` explicit syntax at the `*` level.
 
 ### 3.6 Quoting
 
@@ -232,52 +240,83 @@ See §4.4 for quasiquote and splicing rules.
 
 ## 4. Reader
 
-The **reader** transforms source text into TREESP values (atoms, trees, void). It runs in two phases:
+The **reader** transforms source text into TREESP values (atoms, trees, void). It runs in three phases:
 
-1. **S-expression parse** — text → raw compound structures
-2. **Desugaring** — abbreviations, positional labels, quasiquote expansion
+1. **S-expression parse** — text → raw S-expressions (no branch desugaring)
+2. **Desugaring** — abbreviations, positional `argN` labels, quasiquote expansion
+3. **Value construction** — raw forms become `Tree` / atom values
 
 ### 4.1 Algorithm (S-expression parse)
 
-```
-read-char stream:
-  skip whitespace and comments
-  if EOF           → error
-  if digit or '-'  → read number
-  if '"'           → read string
-  if '#'           → read #t or #f
-  if '('           → read compound or void
-  else             → read symbol
+The parser builds **raw S-expressions** first. A raw form is either an atom or a compound `(e0 e1 … en)` whose children are raw forms. No `arg0`/`arg1` desugaring happens during this phase.
 
-read-compound stream:
+```
+read-atom stream:
+  ... numbers, strings, #t, #f, symbols (see §4.6) ...
+
+read-raw stream:
+  if abbreviation (' ` , ,@): expand to (quote …) etc., then read-raw
+  if '(': read-raw-compound
+  else: read-atom
+
+read-raw-compound stream:
   elements = []
   loop:
-  skip whitespace and comments
-  if ')'           → break
-  if EOF           → error "unclosed ("
-  elements.append(read-char stream)
-  if elements is empty after ')':
-    return VOID
-  tag = elements[0]
-  branches = elements[1..]
-  return desugar-compound(tag, branches)
+    skip whitespace and comments
+    if ')': break
+    if EOF: error "unclosed ("
+    elements.append(read-raw stream)
+  if elements is empty: return VOID
+  return Compound(elements)
+
+desugar-raw(raw):
+  if raw is atom: return atom
+  if raw is VOID: return void
+  if raw is Compound [tag, b1, …, bn]:
+    tag' = desugar-raw(tag)     ; tag is usually a symbol atom
+    return desugar-compound(tag', [b1, …, bn])   ; branches still raw
 ```
+
+Abbreviation expansion (§4.5) runs when `read-raw` sees `'`, `` ` ``, `,`, or `,@`.
 
 ### 4.2 Positional desugaring
 
+`desugar-compound` receives the **desugared tag** and a list of **raw** branch S-expressions (not yet desugared values).
+
 ```
-desugar-compound(tag, branches):
-  if branches is empty:
+explicit-label-form?(raw):
+  raw is Compound [Atom(symbol), subtree]   ; exactly two elements, first is symbol
+
+use-explicit-mode?(raw-branches):
+  raw-branches is non-empty
+  AND every element satisfies explicit-label-form?
+  AND no bare atoms among branches
+
+desugar-compound(tag, raw-branches):
+  if raw-branches is empty:
     return Tree(tag, {})
-  if any branch is explicit-label-form:
-    if any branch is bare-subtree:
-      error "mixed explicit and positional branches"
-    return Tree(tag, { labelᵢ: subtreeᵢ for each (labelᵢ subtreeᵢ) })
+  if use-explicit-mode?(raw-branches):
+    labels = first atom of each branch compound
+    if duplicate labels: error "duplicate branch label"
+    return Tree(tag, { labelᵢ: desugar-raw(subtreeᵢ) })
+  else if any bare atom in raw-branches:
+    return Tree(tag, { argᵢ: desugar-raw(branchᵢ) ... })   ; positional
+  else if any explicit-label-form? AND any compound with 3+ elements:
+    error "mixed explicit and positional branches"
   else:
-    return Tree(tag, { argᵢ: branchᵢ for i, branchᵢ in enumerate(branches) })
+    return Tree(tag, { argᵢ: desugar-raw(branchᵢ) ... })   ; positional
 ```
 
-where `explicit-label-form` is a compound `(label subtree)` with `label` a symbol.
+**Disambiguation.** A nested one-argument call `(fact (- n 1))` has the same surface shape as an explicit labeled branch `(fact <subtree>)`. When a **bare atom** appears among the branches (e.g. `n` in `(* n (fact (- n 1)))`), the parent uses **positional** mode and every branch — including two-element compounds — is desugared as a complete sub-form. Explicit mode applies only when **every** branch is a two-element `(symbol subtree)` compound and **none** are bare atoms.
+
+| Parent form | Mode | Reason |
+|-------------|------|--------|
+| `(if (test x) (then y) (else z))` | explicit | all branches are `(sym subtree)`, no bare atoms |
+| `(* n (fact (- n 1)))` | positional | bare atom `n` among branches |
+| `(foo (a 1) (b c d))` | error | mix of 2-element and 3+-element compounds |
+| `(f a (x 1))` | positional | bare atom `a` forces positional mode |
+
+**Explicit vs positional is a source-syntax rule.** Implementations must not classify branches by inspecting already-desugared trees (e.g. “tree with one branch”). A positional call `(f a)` and an explicit branch `(f (x a))` at the same parent level desugar differently; see table above.
 
 ### 4.3 Reader errors
 
@@ -328,6 +367,18 @@ expand-abbrev(form):
 ```
 
 Abbreviation expansion runs before positional desugaring.
+
+### 4.6 Lexical tokens
+
+| Token | Rule |
+|-------|------|
+| `#t`, `#f` | Boolean literals (`#` followed by `t` or `f`) |
+| Numbers | Optional leading `-` only when immediately followed by digits (e.g. `-3.14`) |
+| `-` alone | Symbol (e.g. subtraction in `(- n 1)`) |
+| `+` | Symbol (e.g. addition) |
+| Other symbols | Letters and the special-initial characters from §3.1 |
+
+A `-` followed by whitespace or `)` is always the symbol `-`, never the start of a number.
 
 ---
 
@@ -509,6 +560,16 @@ Truthy: any value except `#f`. Void is truthy.
 
 Creates a closure. `params` is a tree listing parameter names as branch labels (values are ignored, typically void or placeholder). On application, argument branch labels are matched to parameter labels.
 
+**Parameter list sugar.** In `(lambda (x y) body)`, the params subtree is the raw S-expression `(x y)` desugared positionally:
+
+| Surface params | Desugared params tree | Parameter names |
+|----------------|----------------------|-----------------|
+| `(n)` | `(n)` — tag `n`, zero branches | `n` |
+| `(x y)` | `(x (arg0 y))` — tag `x`, one branch | `x`, `y` |
+| `(params (x) (y))` | explicit branches `x`, `y` | `x`, `y` |
+
+Implementations extract parameter names in order: the tag symbol (if it names a parameter), then each positional `argᵢ` branch value when it is a symbol, or each explicit branch label for `(params (x) (y))` form.
+
 **Arity.** If a required parameter label is missing from the argument branch map → error. Extra argument branches may be ignored or collected per implementation policy (recommend: error on unexpected `argN` for user-defined functions).
 
 ### 6.5 `define`
@@ -532,6 +593,8 @@ Desugars to:
 ```treesp
 (define f (lambda (x y) body))
 ```
+
+**Function define sugar.** `(define (f x y) body)` is read as a `define` with two positional branches: first `(f x y)` (a positional tree tagged `f`), then `body`. The name `f` is the **tag** of that first branch, not a separate atom.
 
 ### 6.6 `set!`
 
