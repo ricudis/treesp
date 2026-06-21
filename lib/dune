@@ -1,0 +1,4 @@
+(library
+ (name treesp)
+ (public_name treesp)
+ (libraries str))

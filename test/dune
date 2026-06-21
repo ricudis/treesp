@@ -1,0 +1,3 @@
+(tests
+ (names value_test reader_test)
+ (libraries treesp alcotest))
