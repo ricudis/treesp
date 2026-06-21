@@ -20,8 +20,8 @@ let repl () =
           List.iter (fun form -> print_result (eval rt form)) forms;
           loop ()
         with
-        | Treesp.Reader.Read_error (pos, msg) ->
-            Printf.eprintf "error: %s at line %d, column %d\n%!" msg pos.line pos.col;
+        | Treesp.Reader.Read_error _ as exn ->
+            Printf.eprintf "error: %s\n%!" (Treesp.Reader.read_error_message exn);
             loop ()
         | Treesp_error msg ->
             Printf.eprintf "error: %s\n%!" msg;
@@ -54,8 +54,8 @@ let run_one path =
       | Ok () -> Ok ()
       | Error msg -> Error (Printf.sprintf "%s: %s" path msg))
   with
-  | Treesp.Reader.Read_error (pos, msg) ->
-      Error (Printf.sprintf "%s: read error at %d:%d: %s" path pos.line pos.col msg)
+  | Treesp.Reader.Read_error _ as exn ->
+      Error (Printf.sprintf "%s: %s" path (Treesp.Reader.read_error_message exn))
   | Treesp_error msg -> Error (Printf.sprintf "%s: %s" path msg)
   | exn -> Error (Printf.sprintf "%s: %s" path (Printexc.to_string exn))
 

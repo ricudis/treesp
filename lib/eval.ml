@@ -135,6 +135,11 @@ let rec apply_prim rt name branches =
   | "newline" ->
       Printer.newline ();
       Void
+  | "read" -> (
+      match args with
+      | [] -> (
+          try Reader.read_channel_line rt.input with End_of_file -> Void)
+      | _ -> raise (Treesp_error "wrong arity"))
   | "error" -> (
       match args with
       | [ msg ] ->
@@ -691,6 +696,7 @@ let primitive_names =
     "not";
     "display";
     "newline";
+    "read";
     "error";
   ]
 

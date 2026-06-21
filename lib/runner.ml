@@ -19,19 +19,21 @@ let run_program ?rt source =
     | None -> Eval.make_runtime ()
   in
   let buf = Buffer.create 256 in
-  let results =
-    Printer.with_output_buffer buf (fun () ->
-        let forms = Reader.read_all source in
-        List.map
-          (fun form ->
-            let v = Eval.eval rt form in
-            if not (is_void v) then (
-              Printer.emit (Printer.string_of_value v);
-              Printer.emitln ());
-            v)
-          forms)
-  in
-  (results, Buffer.contents buf)
+  try
+    let results =
+      Printer.with_output_buffer buf (fun () ->
+          let forms = Reader.read_all source in
+          List.map
+            (fun form ->
+               let v = Eval.eval rt form in
+               if not (is_void v) then (
+                 Printer.emit (Printer.string_of_value v);
+                 Printer.emitln ());
+               v)
+            forms)
+    in
+    (results, Buffer.contents buf)
+  with Reader.Read_error _ as exn -> raise (Treesp_error (Reader.read_error_message exn))
 
 let run_file path =
   let source = In_channel.with_open_text path In_channel.input_all in

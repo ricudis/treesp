@@ -4,6 +4,13 @@ open Treesp.Eval
 
 let fresh () = make_runtime ()
 
+let string_input s =
+  let path = Filename.temp_file "treesp_read" ".in" in
+  let oc = open_out path in
+  output_string oc s;
+  close_out oc;
+  open_in path
+
 let eval_string s =
   let rt = fresh () in
   load_string rt s
@@ -195,6 +202,11 @@ let phase5_tests =
          3.0
          (eval_string
             "(match (node + (arg0 1) (arg1 2)) ((+ (arg0 (?? a)) (arg1 (?? b))) (+ a b)))"));
+    test_case "read" `Quick (fun () ->
+       let rt = fresh () in
+       rt.input <- string_input "(+ 1 2)\n";
+       let v = eval rt (Treesp.Reader.read_one "(read)") in
+       check_num "read" 3.0 (eval rt v));
   ]
 
 let () =

@@ -137,39 +137,39 @@ let has_bare_atom branches =
 let has_multi_compound branches =
   List.exists (function Raw_compound lst -> List.length lst > 2 | _ -> false) branches
 
-let rec desugar_raw = function
+let rec desugar_raw st = function
   | Raw_void -> Void
   | Raw_atom v -> v
   | Raw_compound [] -> Void
-  | Raw_compound (tag :: branches) -> desugar_compound (desugar_raw tag) branches
+  | Raw_compound (tag :: branches) -> desugar_compound st (desugar_raw st tag) branches
 
-and desugar_compound tag branches =
+and desugar_compound st tag branches =
   if branches = [] then make_tree tag []
   else if use_explicit_mode branches then (
     let labels =
       List.map
         (function
           | Raw_compound [ Raw_atom (Sym l); _ ] -> l
-          | _ -> raise (Treesp_error "read: mixed branch forms"))
+          | _ -> error st "read: mixed branch forms")
         branches
     in
     if List.length labels <> List.length (List.sort_uniq compare labels) then
-      raise (Treesp_error "read: duplicate branch label");
+      error st "read: duplicate branch label";
     let pairs =
       List.map
         (function
-          | Raw_compound [ Raw_atom (Sym l); subtree ] -> (l, desugar_raw subtree)
-          | _ -> raise (Treesp_error "read: mixed branch forms"))
+          | Raw_compound [ Raw_atom (Sym l); subtree ] -> (l, desugar_raw st subtree)
+          | _ -> error st "read: mixed branch forms")
         branches
     in
     make_tree tag pairs)
   else if has_bare_atom branches then
-    let pairs = List.mapi (fun i b -> (arg_label i, desugar_raw b)) branches in
+    let pairs = List.mapi (fun i b -> (arg_label i, desugar_raw st b)) branches in
     make_tree tag pairs
   else if List.exists is_explicit_raw branches && has_multi_compound branches then
-    raise (Treesp_error "read: mixed branch forms")
+    error st "read: mixed branch forms"
   else
-    let pairs = List.mapi (fun i b -> (arg_label i, desugar_raw b)) branches in
+    let pairs = List.mapi (fun i b -> (arg_label i, desugar_raw st b)) branches in
     make_tree tag pairs
 
 let rec read_raw st =
@@ -232,7 +232,7 @@ and read_raw_compound st =
 
 let read_one s =
   let st = make_stream s in
-  let v = desugar_raw (read_raw st) in
+  let v = desugar_raw st (read_raw st) in
   skip_ws st;
   if not (eof st) then error st "read: trailing input";
   v
@@ -241,9 +241,12 @@ let read_all s =
   let st = make_stream s in
   let rec loop acc =
     skip_ws st;
-    if eof st then List.rev acc else loop (desugar_raw (read_raw st) :: acc)
+    if eof st then List.rev acc else loop (desugar_raw st (read_raw st) :: acc)
   in
   loop []
+
+let read_channel_line ic =
+  try read_one (input_line ic) with End_of_file -> raise End_of_file
 
 let read_error_message = function
   | Read_error ({ line; col }, msg) -> Printf.sprintf "%s at line %d, column %d" msg line col

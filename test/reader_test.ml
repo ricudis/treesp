@@ -34,6 +34,17 @@ let appendix_a =
 let reader_errors =
   [ test_case "unclosed paren" `Quick (fun () -> expect_error "(f 1");
     test_case "mixed branches" `Quick (fun () -> expect_error "(foo (a 1) (b c d))");
+    test_case "mixed branches position" `Quick (fun () ->
+       match read_one "(f (x 1) (y c d))" with
+       | exception Read_error ({ line; col }, msg) ->
+           check int "line" 1 line;
+           check bool "col > 0" true (col > 0);
+           check bool "message" true (msg = "read: mixed branch forms")
+       | exception Treesp_error msg ->
+           Alcotest.failf "expected Read_error, got Treesp_error: %s" msg
+       | v ->
+           Alcotest.failf "expected read error, got %s"
+             (Treesp.Printer.string_of_value v));
     test_case "duplicate label" `Quick (fun () -> expect_error "(f (x 1) (x 2))");
     test_case "malformed number" `Quick (fun () -> expect_error "(f .)");
     test_case "trailing input" `Quick (fun () -> expect_error "() ()")

@@ -101,6 +101,16 @@ Prelude macros are installed in `make_runtime` via `Env.define` (not `load_strin
 
 Surface primitive exposing §5.3 `apply`: `(apply operator args-tree)` evaluates `operator` to a callable, requires `args-tree` to be a tree, and dispatches on its branches as a normal call. See [TREESP.md](TREESP.md) §7.9.
 
+### I/O — `read` (§7.8)
+
+- **`read`** reads **one line** from `runtime.input` (stdin in the REPL), parses it with `Reader.read_one`, and returns the resulting value.
+- **EOF** (empty input channel) returns `Void` (same idiom as `()`).
+- **Parse errors** raise `Reader.Read_error` with line/column; the REPL and file runner format them via `Reader.read_error_message`.
+
+## Reader errors (Phase 7)
+
+All reader failures — lexer, parser, and desugar (`read: mixed branch forms`, `read: duplicate branch label`, etc.) — raise `Read_error of pos * string` with source line and column. Desugar passes the active `stream` into `desugar_raw` / `desugar_compound` so errors use the same `error st msg` helper as the lexer.
+
 ## Conformance suite (Phase 6)
 
 - **[examples/](examples/)** — one `.treesp` program per spec §10 section, with `.treesp.expected` golden stdout.
@@ -125,8 +135,8 @@ examples/  .treesp files from spec §10
 
 ## Version milestones
 
-| Version | Scope |
-|---------|-------|
-| v0.1 | Specification only |
-| v0.2 | Reference interpreter + conformance tests |
-| v0.3 | Standard library helpers (§9.5) |
+| Version | Scope | Status |
+|---------|-------|--------|
+| v0.1 | Specification only | complete |
+| v0.2 | Reference interpreter + conformance tests | **complete** |
+| v0.3 | Standard library helpers (§9.5) | planned |

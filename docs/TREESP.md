@@ -777,7 +777,7 @@ Branch access for variadic ops: all `arg0`, `arg1`, … branches are collected i
 | Primitive | Description |
 |-----------|-------------|
 | `display` | Write a value to standard output |
-| `read` | Read one value from standard input |
+| `read` | Read one value from standard input (v0.2: one line per call) |
 | `newline` | Write a newline |
 
 `display` prints trees using the canonical S-expression syntax with explicit labels only when necessary for round-trip (implementations may always print desugared form).
