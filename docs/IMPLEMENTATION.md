@@ -39,6 +39,27 @@ value =
 - `display` always prints desugared `argN` form (allowed per §7.8).
 - Reader classifies explicit vs positional branches from **raw S-expressions** before child desugaring (§4.2).
 
+## Tree primitives
+
+### `node` and positional calls
+
+`node` is a **special form** (not a primitive). Surface forms like `(node expr (op +) (left 1))` use a bare tag atom, so the reader desugars the call positionally (§4.2). Evaluation rules:
+
+- **Tag** (`arg0`): symbols and other atoms are literal (`eval-data`); compound expressions are evaluated.
+- **Unary branch** (`argN` shaped as `(label value)`): the label comes from the subtree tag; **atoms** in the value position are literal, **compound trees** are fully evaluated (so nested `(node …)` works).
+- Non-`argN` keys in the branch map are explicit labels; values are evaluated.
+- Duplicate labels → error.
+
+### Label arguments on primitives
+
+For `graft`, `prune`, `branch`, `branch?`, and label steps of `path`, symbol arguments are **literal** (not looked up in the environment). Other arguments are evaluated normally.
+
+**Lambda `(params (x) (y))`.** The reader desugars this positionally to `(params (arg0 (x)) (arg1 (y)))`; `param_labels` extracts `x` and `y` from the unary param subtrees.
+
+### `walk-tree`
+
+Pre-order: `pre-fn` on the current node, then each child in branch order, then `post-fn` on the current node. Returns void.
+
 ## Environment
 
 Environments are trees tagged `env` with symbol bindings as branches and an optional `parent` branch linking to the enclosing frame. Lookup walks `parent` for lexical scoping.

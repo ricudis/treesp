@@ -104,11 +104,19 @@ let positional_pairs branches =
   in
   loop 0 []
 
+let param_name = function
+  | Sym s -> s
+  | Tree { tag = Sym s; branches = [] } -> s
+  | _ -> raise (Treesp_error "invalid parameter list")
+
 let param_labels params =
   match params with
   | Sym s -> [ s ]
   | Tree { tag = Sym t; branches = [] } -> [ t ]
-  | Tree { tag = Sym "params"; branches } -> List.map fst branches
+  | Tree { tag = Sym "params"; branches } -> (
+      let pos = positional_pairs branches in
+      if pos <> [] then List.map (fun (_, v) -> param_name v) pos
+      else List.map fst branches)
   | Tree { tag = Sym t; branches } ->
       let rest =
         positional_pairs branches

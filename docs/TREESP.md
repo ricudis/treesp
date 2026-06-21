@@ -698,6 +698,8 @@ Unless noted, primitives evaluate all argument branches before the primitive run
 
 All construction primitives return **new** trees; existing trees are immutable.
 
+**`node` and reader desugaring.** Calls such as `(node expr (op +) (left 1))` are read positionally because `expr` is a bare atom (§4.2). `node` is a **special form**: the tag and atomic branch values are literal symbols/atoms; compound branch values are evaluated. See [IMPLEMENTATION.md](IMPLEMENTATION.md).
+
 ### 7.4 Traversal
 
 | Primitive | Signature | Description |
