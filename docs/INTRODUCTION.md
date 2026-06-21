@@ -24,6 +24,8 @@ TREESP is a LISP in spirit: S-expressions, `quote`, `lambda`, macros, the whole 
 
 In LISP, `(f a b)` is a list of three things. In TREESP, `(f a b)` is a tree tagged `f` with branches `a` and `b`. Same syntax. Better ontology.
 
+We also have an error message no other language has bothered to invent: **`read: mixed branch forms`**. You will meet it when you write `(foo (a 1) (b c d))` — one branch that looks labeled, one that looks like a proper call, neither bare atom to break the tie — and the reader refuses to guess. Other languages silently pick a interpretation, or worse, parse it wrong and let you debug the wreckage at runtime. TREESP stops you at the door and says *nice try*. We are insufferably proud of this. See §4.3 of the [language specification](TREESP.md).
+
 For the grammar, reader, primitives, and formal semantics, see the [language specification](TREESP.md). This document is the *why*.
 
 ---

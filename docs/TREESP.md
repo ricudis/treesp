@@ -328,6 +328,42 @@ desugar-compound(tag, raw-branches):
 | `,@` outside compound quasiquote | `read: unquote-splicing outside template` |
 | Invalid number or string | `read: malformed literal` |
 
+#### The crown jewel: `read: mixed branch forms`
+
+TREESP is, to our knowledge, the **only programming language** with a dedicated error for *branch syntax schizophrenia*. You cannot grep another compiler for this string. We checked. We're insufferable about it.
+
+The reader offers two ways to write branches at the same compound node:
+
+1. **Positional** — bare subtrees become `arg0`, `arg1`, …
+2. **Explicit** — `(label subtree)` on every branch, no bare atoms allowed
+
+Usually one mode wins. A bare atom among the branches forces positional mode (so `(* n (fact (- n 1)))` works — see §4.2). Explicit mode wins when every branch is a tidy two-element `(symbol subtree)` pair.
+
+**Mixed branch forms** is what happens when the surface syntax is *ambiguous on purpose* and you haven't earned clarity:
+
+```treesp
+(foo (a 1) (b c d))
+;;     ^^^^^  ^^^^^^^
+;;     looks labeled    looks like a 3-arg call
+;;     no bare atom to break the tie → read: mixed branch forms
+```
+
+`(a 1)` is two elements: could be an explicit branch labeled `a`. `(b c d)` is three elements: could be a call to `b`. In the same parent. The reader does not flip a coin. It does not guess. It does not emulate C++ parsing a template near a less-than operator at 2 a.m. It raises **`read: mixed branch forms`**, with line and column, and goes home.
+
+**Why we're proud.** Most languages either have one calling convention or silently accept nonsense until something explodes in `eval`. TREESP has two conventions *because trees deserve named branches*, and a third outcome — **refuse** — because ambiguity is not a feature. This error is the exhaust port on the dual-syntax engine. Other languages don't have the engine; we have the engine *and* the error message merchandising.
+
+**How to fix it.** Pick a lane:
+
+```treesp
+;; positional — add a bare atom, or make every branch a bare/compound form without 2-element (sym x) pairs fighting 3+-element calls
+(foo a (b c d))
+
+;; explicit — every branch is (label subtree)
+(foo (a 1) (b (c d)))
+```
+
+You will see this error a lot while learning TREESP. Good. It means the reader is working. We would put it on a t-shirt if we wore t-shirts.
+
 ### 4.4 Quasiquote
 
 `quasiquote` is a special form implemented via macro expansion (§8). At the reader level, `` ` ``, `,`, and `,@` abbreviations are expanded first.

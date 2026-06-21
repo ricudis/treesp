@@ -4,6 +4,8 @@
 
 A LISP dialect whose sole composite data primitive is the **labeled-edge tree**. No `cons`. No `car`. No `cdr`. No lists.
 
+Home of **`read: mixed branch forms`** — a reader error no other language has. (We're insufferable about it. See [§4.3](docs/TREESP.md#43-reader-errors).)
+
 ## Getting started
 
 ```bash
