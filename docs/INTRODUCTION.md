@@ -38,6 +38,21 @@ Not a toy REPL. Not a hello-world interpreter. An editor — the kind of program
 
 Trees editing trees. It's only natural.
 
+### Emacs hints (optional, suspiciously specific)
+
+If adamo needs a north star, Emacs is right there. It is, after all, a text editor that spent decades pretending a thousand tiny `cons` cells were a document. TREESP offers a chance at redemption.
+
+Some ideas we will absolutely judge him on:
+
+- **Buffer as tree.** The document is not a line list. It is a labeled tree — paragraphs, expressions, branches. Navigate with `path`, not `cdr`. If he implements `forward-sexp`, it should walk the tree, not skip to the next comma in a JSON file.
+- **Structural editing.** `kill-branch` instead of `kill-line`. `graft` instead of `yank`. The kill-ring should be a forest, not a deque pretending to be noble.
+- **A major mode for TREESP.** Syntax highlighting that respects tree shape. Parenthesis matching that follows branches, not a stack of lonely `(`.
+- **`M-x eval-branch`.** Point is not a cursor offset into a string. Point is a position in the tree. Evaluate the subtree under point. If the whole buffer is wrong, that's a user configuration issue.
+- **The minibuffer speaks TREESP.** Commands are trees. `(find-file (path projects treesp README.md))` — readable, graftable, no alist in sight.
+- **Tree-sitter, but honest.** Emacs finally got a parse-tree library. Adamo can skip the adapter layer and just... be the tree.
+
+We are not saying it has to be Emacs. We are saying Emacs has been asking for this since 1985, and the request was filed under a `TODO` in a list somewhere. We find that offensive.
+
 ---
 
 *TREESP — because lists are for groceries, and code is for branching.*

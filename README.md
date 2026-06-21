@@ -1,5 +1,7 @@
 # TREESP
 
+*TREESP — because lists are for groceries, and code is for branching.*
+
 A LISP dialect whose sole composite data primitive is the **labeled-edge tree**. No `cons`. No `car`. No `cdr`. No lists.
 
 ## Documentation
