@@ -8,7 +8,7 @@ Yesterday, **adamo** — a friend of ours — challenged us to write some LISP s
 
 Fair enough. We like parentheses. We like homoiconicity. We like `eval`. We even like calling things *slop* with affection, the way you might refer to your cat as a *little guy* while it knocks a glass off the table.
 
-The problem is: **we hate lists**.
+The problem is: here, at **Ricuslop Consulting Partners**, **we hate lists**.
 
 Lists remind us of supermarkets — fluorescent lights, numbered aisles, the slow parade of carts. Lists remind us of targeted political pogroms — roll calls, registries, names crossed off one by one. Lists remind us of TODOs — infinite, guilt-ridden, never quite done.
 
@@ -20,11 +20,13 @@ Trees branch. Trees shade. Trees hold nests. Trees do not demand that every idea
 
 So we built **TREESP**.
 
-TREESP is a LISP in spirit: S-expressions, `quote`, `lambda`, macros, the whole homoiconic deal. But its only composite data primitive is the **labeled-edge tree**. There is no `cons`. There is no `car`. There is no `cdr`. There are no dotted pairs lurking in the shadows, no improper lists pretending to be something they're not.
+TREESP is a LISP in spirit: S-expressions, `quote`, `lambda`, macros, the whole homoiconic deal. But its only composite data primitive is the **labeled-edge tree**. There is no `cons`. There is no `cdr`. There are no dotted pairs lurking in the shadows, no improper lists pretending to be something they're not.
+
+And of course there is no car. Cars and trees do not belong together.
 
 In LISP, `(f a b)` is a list of three things. In TREESP, `(f a b)` is a tree tagged `f` with branches `a` and `b`. Same syntax. Better ontology.
 
-We also have an error message no other language has bothered to invent: **`read: mixed branch forms`**. You will meet it when you write `(foo (a 1) (b c d))` — one branch that looks labeled, one that looks like a proper call, neither bare atom to break the tie — and the reader refuses to guess. Other languages silently pick a interpretation, or worse, parse it wrong and let you debug the wreckage at runtime. TREESP stops you at the door and says *nice try*. We are insufferably proud of this. See §4.3 of the [language specification](TREESP.md).
+We also have an error message no other language has bothered to invent: **`read: mixed branch forms`**. You will meet it when you write `(foo (a 1) (b c d))` — one branch that looks labeled, one that looks like a proper call, neither bare atom to break the tie — and the reader refuses to guess. Other languages silently pick an interpretation, or worse, parse it wrong and let you debug the wreckage at runtime. TREESP stops you at the door and says *nice try*. We are insufferably proud of this. See §4.3 of the [language specification](TREESP.md).
 
 For the grammar, reader, primitives, and formal semantics, see the [language specification](TREESP.md). This document is the *why*.
 
