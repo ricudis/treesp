@@ -19,4 +19,5 @@ dune exec treesp -- test     # §10 examples
 - [Introduction](docs/INTRODUCTION.md) — why TREESP exists, and a counter-challenge to adamo
 - [Language specification](docs/TREESP.md) — syntax, semantics, primitives, and examples
 - [Implementation notes](docs/IMPLEMENTATION.md) — reference interpreter decisions (v0.2)
+- [Future roadmap](docs/TODO.md) — where we're going next (v1.0 and beyond)
 - [Examples](examples/) — programs from the spec §10 conformance suite
