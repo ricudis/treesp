@@ -191,6 +191,18 @@ let rec apply_prim rt name branches =
       match args with
       | [ tree; pred ] -> filter_branches rt pred tree
       | _ -> raise (Treesp_error "wrong arity"))
+  | "merge-branches" -> (
+      match args with
+      | [ t1; t2 ] -> Stdlib.merge_branches t1 t2
+      | _ -> raise (Treesp_error "wrong arity"))
+  | "rename-branch" -> (
+      match args with
+      | [ tree; Sym old_label; Sym new_label ] ->
+          Stdlib.rename_branch tree old_label new_label
+      | _ -> raise (Treesp_error "wrong arity"))
+  | "depth" -> Num (Stdlib.depth (single args))
+  | "size" -> Num (Stdlib.size (single args))
+  | "clone" -> Stdlib.clone (single args)
   | "apply" -> (
       match args with
       | [ op; Tree { branches; _ } ] -> (
@@ -264,6 +276,7 @@ and eval_prim_arg rt name index expr =
   let literal =
     match name with
     | "path" -> index > 0
+    | "rename-branch" -> index = 1 || index = 2
     | n when label_prim n -> index = 1
     | _ -> false
   in
@@ -683,6 +696,11 @@ let primitive_names =
     "walk-tree";
     "map-branches";
     "filter-branches";
+    "merge-branches";
+    "rename-branch";
+    "depth";
+    "size";
+    "clone";
     "apply";
     "+";
     "-";

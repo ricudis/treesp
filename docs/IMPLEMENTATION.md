@@ -111,6 +111,18 @@ Surface primitive exposing §5.3 `apply`: `(apply operator args-tree)` evaluates
 
 All reader failures — lexer, parser, and desugar (`read: mixed branch forms`, `read: duplicate branch label`, etc.) — raise `Read_error of pos * string` with source line and column. Desugar passes the active `stream` into `desugar_raw` / `desugar_compound` so errors use the same `error st msg` helper as the lexer.
 
+## Standard library (Phase 8)
+
+Implemented in [lib/stdlib.ml](lib/stdlib.ml) and exposed as prelude primitives:
+
+| Primitive | Semantics |
+|-----------|-----------|
+| `merge-branches` | Union of two trees' branch maps (left order, then new labels from right). Tags must be `equal?`. Conflicting label with unequal values → error. Identical duplicate labels are kept once. |
+| `rename-branch` | Deep copy; renames one branch label at the root node only. Old/new labels are literal symbols (like `graft`). |
+| `depth` | Non-tree → `0`; tree → `1 + max(child depth)` (empty tree → `1`). |
+| `size` | Every value counts as one node; tree size is `1 + sum(child sizes)`. |
+| `clone` | Deep copy of tree structure; atoms unchanged; `Callable` values shared. |
+
 ## Conformance suite (Phase 6)
 
 - **[examples/](examples/)** — one `.treesp` program per spec §10 section, with `.treesp.expected` golden stdout.
@@ -139,4 +151,4 @@ examples/  .treesp files from spec §10
 |---------|-------|--------|
 | v0.1 | Specification only | complete |
 | v0.2 | Reference interpreter + conformance tests | **complete** |
-| v0.3 | Standard library helpers (§9.5) | planned |
+| v0.3 | Standard library helpers (§9.5) | **complete** |

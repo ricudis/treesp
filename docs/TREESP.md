@@ -888,6 +888,8 @@ Special forms, `define`, `lambda`, `apply`, arithmetic, predicates, `display`, `
 
 ### 9.5 Planned (non-normative)
 
+v0.3 implements these as prelude primitives:
+
 | Function | Purpose |
 |----------|---------|
 | `merge-branches` | Union of branch maps with conflict policy |
